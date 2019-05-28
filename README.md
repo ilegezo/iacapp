@@ -6,3 +6,4 @@
   <li>d2m - Температура точки росы на уровне 2 м над поверхностью</li>
   <li>tp - Суммарное количество осадков</li>
 </ul>
+<a href="https://scilabo7.shinyapps.io/iacapp/">https://scilabo7.shinyapps.io/iacapp/</a>
