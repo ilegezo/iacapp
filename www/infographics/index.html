@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<link href="../shared/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+	<link rel="stylesheet" href="style.css" type="text/css">
+	<script src="../shared/bootstrap/js/bootstrap.min.js"></script>
+	<script src="../shared/jquery.min.js"></script>
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+	<script src="d3-scale-radial.js"></script>
+	<script>
+	function createSVG(data) {
+		var svg = d3.select("#SVG"),
+			width = +svg.attr("width"),
+			height = +svg.attr("height"),
+			innerRadius = 110,
+			outerRadius = Math.min(width, height) * 0.5,
+			g = svg.append("g").attr("transform", "translate(" + width * 0.5 + "," + height * 0.5 + ")");
+
+		var x = d3.scaleBand()
+			.range([0, 2 * Math.PI])
+			.align(0);
+
+		var y = d3.scaleRadial()
+			.range([innerRadius, outerRadius]);
+		
+		var z = d3.scaleOrdinal()
+    		.range(["#6b486b", "#ff8c00", "#98abc5"]);
+		
+		var t2mLinear = d3.scaleLinear()
+			.domain([273, d3.max(data, function(d) { return d.t2m; })]).nice()
+			.range([0, 1])
+			.clamp(true);
+		
+		var d2mLinear = d3.scaleLinear()
+			.domain([273, d3.max(data, function(d) { return d.d2m; })]).nice()
+			.range([0, 1])
+			.clamp(true);
+		
+		var tpLinear = d3.scaleLinear()
+			.domain([0, d3.max(data, function(d) { return d.tp; })]).nice()
+			.range([0, 1])
+			.clamp(true);
+		
+		data.forEach(function(d) {
+			d.t2m = t2mLinear(d.t2m);
+			d.d2m = d2mLinear(d.d2m);
+			d.tp = tpLinear(d.tp);
+		});
+		
+		var d3Arr = d3.stack().keys(["t2m", "d2m", "tp"])(data);
+		
+		var paramLinear = d3.scaleLinear()
+			.domain([0, d3.max(d3Arr[d3Arr.length-1], function (d) { return d[1]; })]).nice()
+			.range([0, 1])
+			.clamp(true);
+		
+		for (var i = 0; i < d3Arr.length; i++){
+			d3Arr[i].map(function(d) { d[0] = paramLinear(d[0]); d[1] = paramLinear(d[1]); });
+		}
+		
+		x.domain(data.map(function(d) { return d.taken_date; }));
+		y.domain([0, 1]).nice();
+		z.domain(["t2m", "d2m", "tp"]);
+		
+		g.append("g")
+			.selectAll("g")
+			.data(d3Arr)
+			.enter().append("g")
+				.attr("fill", function(d) { return z(d.key); })
+			.selectAll("path")
+			.data(function(d) { return d; })
+			.enter().append("path")
+				.attr("d", d3.arc()
+					.innerRadius(function(d) { if (d[0] == 0) return innerRadius; else return y(d[0]); })
+					.outerRadius(function(d) { return y(d[1]); })
+					.startAngle(function(d) { return x(d.data.taken_date); })
+					.endAngle(function(d) { return x(d.data.taken_date) + x.bandwidth(); })
+					.padAngle(0.01)
+					.padRadius(innerRadius));
+
+		var label = g.append("g")
+			.selectAll("g")
+			.data(data)
+			.enter().append("g")
+				.attr("text-anchor", "middle")
+				.attr("transform", function(d) { return "rotate(" + ((x(d.taken_date) + x.bandwidth() / 2) * 180 / Math.PI - 90) + ")translate(" + innerRadius + ",0)"; });
+
+		label.append("line")
+			.attr("x2", -5)
+			.attr("stroke", "#000");
+
+		label.append("text")
+			.attr("transform", function(d) { return (x(d.taken_date) + x.bandwidth() / 2 + Math.PI / 2) % (2 * Math.PI) < Math.PI ? "rotate(90)translate(0,16)" : "rotate(-90)translate(0,-9)"; })
+			.text(function(d) { return d.taken_date; });
+
+		var yAxis = g.append("g")
+			.attr("text-anchor", "end");
+		
+		var yTick = yAxis
+			.selectAll("g")
+			.data(y.ticks(10))
+			.enter().append("g");
+
+		yTick.append("circle")
+			.attr("fill", "none")
+			.attr("stroke", "#000")
+			.attr("stroke-opacity", 0.5)
+			.attr("r", y);
+
+		yTick.append("text")
+			.attr("x", -6)
+			.attr("y", function(d) { return -y(d); })
+			.attr("dy", "0.35em")
+			.attr("fill", "none")
+			.attr("stroke", "#fff")
+			.attr("stroke-linejoin", "round")
+			.attr("stroke-width", 3)
+			.text(y.tickFormat(10, "s"));
+
+		yTick.append("text")
+			.attr("x", -6)
+			.attr("y", function(d) { return -y(d); })
+			.attr("dy", "0.35em")
+			.text(y.tickFormat(10, "s"));
+
+		var legend = g.append("g")
+			.selectAll("g")
+			.data(["t2m", "d2m", "tp"])
+			.enter().append("g")
+				.attr("transform", function(d, i) { return "translate(-20," + (i - data.length / 2 + 2) * 20 + ")"; });
+
+		legend.append("rect")
+			.attr("width", 18)
+			.attr("height", 18)
+			.attr("fill", function(d) { return z(d); });
+
+		legend.append("text")
+			.attr("x", 24)
+			.attr("y", 9)
+			.attr("dy", "0.35em")
+			.text(function(d) { return d; });
+	}
+		
+	function supports_html5_storage() {
+		try {
+			return 'localStorage' in window && window['localStorage'] !== null;
+		} catch (e) {
+			return false;
+		}
+	}
+
+	window.onload = function() {
+		if (!supports_html5_storage()) alert("Ваш браузер не поддерживает localStorage!");
+		var data = JSON.parse(localStorage.getItem("data"));
+		$("h2").html("Инфографика о погоде в точке (" + data[0]["latitude"] + ", " + data[0]["longitude"] + ")");
+		createSVG(data);
+		localStorage.removeItem("data");
+	}
+	</script>
+</head>
+<body>
+	<div class="container-fluid">
+		<div class="row">
+			<div class="col-md-12" align="center">
+				<h2></h2>
+				<br>
+				<svg id="SVG" width="650" height="660" font-family="sans-serif" font-size="10"></svg>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
